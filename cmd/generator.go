@@ -29,6 +29,7 @@ var (
 	additionalQueries      = kingpin.Flag("query-additional-queries", "PromQL queries to run in addition to the default.").Strings()
 	tenantsCount           = kingpin.Flag("tenants-count", "Number of tenants to fake.").Default("1").Int()
 	seriesCount            = kingpin.Flag("series-count", "Number of series to generate for each tenant.").Default("1000").Int()
+	metaLabelPrifix        = kingpin.Flag("meta-label-prefix", "Prefix for the meta labels.").Default("__metadata__").String()
 	seriesChurnPeriod      = kingpin.Flag("series-churn-period", "How frequently the series should churn. Each series will churn over this duration, and series churning time is spread over the configured period (they will not churn all at the same time). 0 to disable churning.").Default("0").Duration()
 	extraLabelCount        = kingpin.Flag("extra-labels-count", "Number of extra labels to generate for series.").Default("0").Int()
 	serverMetricsPort      = kingpin.Flag("server-metrics-port", "The port where metrics are exposed.").Default("9900").Int()
@@ -68,6 +69,7 @@ func main() {
 			SeriesCount:       *seriesCount,
 			SeriesChurnPeriod: *seriesChurnPeriod,
 			ExtraLabels:       *extraLabelCount,
+			MetaDataPrifix:    *metaLabelPrifix,
 		}, logger)
 
 		writeClient.Start()

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"math/rand"
 	"net/http"
 	"net/url"
 	"sort"
@@ -43,6 +44,7 @@ type WriteClientConfig struct {
 	// Number of extra labels to generate per write request.
 	ExtraLabels int
 
+	MetaDataPrifix   string
 	WriteInterval    time.Duration
 	WriteTimeout     time.Duration
 	WriteConcurrency int
@@ -86,7 +88,7 @@ func (c *WriteClient) run() {
 
 func (c *WriteClient) writeSeries() {
 	ts := alignTimestampToInterval(time.Now(), c.cfg.WriteInterval)
-	series := generateSineWaveSeries(ts, c.cfg.SeriesCount, c.cfg.ExtraLabels, c.cfg.SeriesChurnPeriod)
+	series := generateSineWaveSeries(ts, c.cfg.SeriesCount, c.cfg.ExtraLabels, c.cfg.SeriesChurnPeriod, c.cfg.MetaDataPrifix)
 
 	// Honor the batch size.
 	wg := sync.WaitGroup{}
@@ -167,17 +169,53 @@ func alignTimestampToInterval(ts time.Time, interval time.Duration) time.Time {
 	return time.Unix(0, (ts.UnixNano()/int64(interval))*int64(interval))
 }
 
-func generateSineWaveSeries(t time.Time, seriesCount, extraLabelsCount int, churnPeriod time.Duration) []*prompb.TimeSeries {
+func generateSineWaveSeries(t time.Time, seriesCount, extraLabelsCount int, churnPeriod time.Duration, metadataPrifix string) []*prompb.TimeSeries {
 	out := make([]*prompb.TimeSeries, 0, seriesCount)
+
+	metaLabels := map[string][]string{
+		"node__ip": {
+			"192.168.0.0",
+			"192.168.0.1",
+		},
+		"asserts__service": {
+			"ingester",
+			"querier",
+		},
+		"asserts__request_type": {
+			"outbound",
+			"inbound",
+		},
+	}
+
+	// To garantee the order of keys. So we can get the same labels generated everytime.
+	fixedKeys := []string{
+		"node__ip",
+		"asserts__service",
+		"asserts__request_type",
+	}
+
+	// generate maximum 3 extra labels here, even we set higher value in the flag.
+	if len(metaLabels) < extraLabelsCount {
+		extraLabelsCount = len(metaLabels)
+	}
+
+	// generate value for the sine wave.
 	value := generateSineWaveValue(t)
 
 	// Generate the extra labels.
 	extraLabels := make([]*prompb.Label, 0, extraLabelsCount)
-	for j := 0; j < extraLabelsCount; j++ {
+	count := 0
+	for _, k := range fixedKeys {
+		v := metaLabels[k]
+		if count >= extraLabelsCount {
+			break
+		}
+		index := rand.Intn(len(v))
 		extraLabels = append(extraLabels, &prompb.Label{
-			Name:  fmt.Sprintf("extraLabel%d", j),
-			Value: "default",
+			Name:  metadataPrifix + k,
+			Value: v[index],
 		})
+		count++
 	}
 
 	for seriesID := 1; seriesID <= seriesCount; seriesID++ {
@@ -201,7 +239,7 @@ func generateSineWaveSeries(t time.Time, seriesCount, extraLabelsCount int, chur
 			churnID := t.Add((churnPeriod/time.Duration(seriesCount))*time.Duration(seriesID)).Unix() / int64(churnPeriod.Seconds())
 
 			labels = append(labels, &prompb.Label{
-				Name:  "churn",
+				Name:  metadataPrifix + "churn",
 				Value: fmt.Sprintf("%d", churnID),
 			})
 		}
