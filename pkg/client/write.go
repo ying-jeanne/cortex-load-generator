@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"math/rand"
 	"net/http"
 	"net/url"
 	"sort"
@@ -202,22 +201,6 @@ func generateSineWaveSeries(t time.Time, seriesCount, extraLabelsCount int, chur
 	// generate value for the sine wave.
 	value := generateSineWaveValue(t)
 
-	// Generate the extra labels.
-	extraLabels := make([]*prompb.Label, 0, extraLabelsCount)
-	count := 0
-	for _, k := range fixedKeys {
-		v := metaLabels[k]
-		if count >= extraLabelsCount {
-			break
-		}
-		index := rand.Intn(len(v))
-		extraLabels = append(extraLabels, &prompb.Label{
-			Name:  metadataPrifix + k,
-			Value: v[index],
-		})
-		count++
-	}
-
 	for seriesID := 1; seriesID <= seriesCount; seriesID++ {
 		labels := make([]*prompb.Label, 0, 3+extraLabelsCount)
 		labels = append(labels, &prompb.Label{
@@ -228,6 +211,22 @@ func generateSineWaveSeries(t time.Time, seriesCount, extraLabelsCount int, chur
 			Value: strconv.Itoa(seriesID),
 		})
 
+		// Generate the extra labels.
+		extraLabels := make([]*prompb.Label, 0, extraLabelsCount)
+		count := 0
+		for _, k := range fixedKeys {
+			v := metaLabels[k]
+			if count >= extraLabelsCount {
+				break
+			}
+			// generate a index to get the value from the slice [0, len(v)-1]
+			index := int(float64(seriesID-1) / float64(seriesCount-1) * float64(len(v)-1))
+			extraLabels = append(extraLabels, &prompb.Label{
+				Name:  metadataPrifix + k,
+				Value: v[index],
+			})
+			count++
+		}
 		// Add extra labels.
 		labels = append(labels, extraLabels...)
 

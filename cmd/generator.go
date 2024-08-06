@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"os"
 	"sync"
 
@@ -57,7 +56,8 @@ func main() {
 	wg.Add(*tenantsCount)
 
 	for t := 1; t <= *tenantsCount; t++ {
-		userID := fmt.Sprintf("load-generator-%d", t)
+		// userID := fmt.Sprintf("load-generator-%d", t)
+		userID := "19865"
 
 		writeClient := client.NewWriteClient(client.WriteClientConfig{
 			URL:               **remoteURL,
