@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/binary"
 	"fmt"
 	"io"
 	"math"
@@ -168,6 +170,25 @@ func alignTimestampToInterval(ts time.Time, interval time.Duration) time.Time {
 	return time.Unix(0, (ts.UnixNano()/int64(interval))*int64(interval))
 }
 
+func generateMappedIndex(seriesID int, key string, sliceLen int) int {
+	// Create a SHA-256 hash
+	hash := sha256.New()
+
+	// Convert the seriesID to a byte slice and write to the hash
+	var buf [8]byte
+	binary.LittleEndian.PutUint64(buf[:], uint64(seriesID))
+	hash.Write(buf[:])
+
+	// Write the key to the hash
+	hash.Write([]byte(key))
+
+	// Get the first 8 bytes of the hash as a uint64 value
+	hashedValue := binary.LittleEndian.Uint64(hash.Sum(nil)[:8])
+
+	// Map the hash value to an index in the range [0, sliceLen)
+	return int(hashedValue % uint64(sliceLen))
+}
+
 func generateSineWaveSeries(t time.Time, seriesCount, extraLabelsCount int, churnPeriod time.Duration, metadataPrifix string) []*prompb.TimeSeries {
 	out := make([]*prompb.TimeSeries, 0, seriesCount)
 
@@ -219,8 +240,7 @@ func generateSineWaveSeries(t time.Time, seriesCount, extraLabelsCount int, chur
 			if count >= extraLabelsCount {
 				break
 			}
-			// generate a index to get the value from the slice [0, len(v)-1]
-			index := int(float64(seriesID-1) / float64(seriesCount-1) * float64(len(v)-1))
+			index := generateMappedIndex(seriesID, k, len(v))
 			extraLabels = append(extraLabels, &prompb.Label{
 				Name:  metadataPrifix + k,
 				Value: v[index],
